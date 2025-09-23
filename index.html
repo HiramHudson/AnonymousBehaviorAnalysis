@@ -1,0 +1,804 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Anonymous Behavior Analysis</title>
+    <script crossorigin src="https://unpkg.com/ethers@5.7.2/dist/ethers.umd.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+            color: white;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+
+        .main-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .card {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            backdrop-filter: blur(10px);
+        }
+
+        .card h3 {
+            color: #4a5568;
+            margin-bottom: 20px;
+            font-size: 1.3rem;
+            border-bottom: 2px solid #e2e8f0;
+            padding-bottom: 10px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+            color: #4a5568;
+        }
+
+        .form-group input, .form-group select {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.3s ease;
+        }
+
+        .form-group input:focus, .form-group select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 600;
+            transition: transform 0.2s ease;
+            width: 100%;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+        }
+
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .btn-secondary {
+            background: linear-gradient(135deg, #48bb78 0%, #38a169 100%);
+        }
+
+        .status {
+            margin-top: 15px;
+            padding: 10px;
+            border-radius: 8px;
+            font-weight: 500;
+        }
+
+        .status.success {
+            background: #c6f6d5;
+            color: #22543d;
+            border: 1px solid #9ae6b4;
+        }
+
+        .status.error {
+            background: #fed7d7;
+            color: #742a2a;
+            border: 1px solid #fc8181;
+        }
+
+        .status.loading {
+            background: #bee3f8;
+            color: #2a4365;
+            border: 1px solid #90cdf4;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .stat-item {
+            background: linear-gradient(135deg, #4299e1 0%, #3182ce 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+        }
+
+        .stat-item h4 {
+            font-size: 1.8rem;
+            margin-bottom: 5px;
+        }
+
+        .stat-item p {
+            opacity: 0.9;
+            font-size: 0.9rem;
+        }
+
+        .session-history {
+            max-height: 400px;
+            overflow-y: auto;
+            margin-top: 20px;
+        }
+
+        .session-item {
+            background: #f7fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 10px;
+        }
+
+        .session-item h4 {
+            color: #4a5568;
+            margin-bottom: 8px;
+        }
+
+        .session-meta {
+            color: #718096;
+            font-size: 0.9rem;
+        }
+
+        .wallet-info {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 20px;
+            color: white;
+        }
+
+        .wallet-address {
+            font-family: monospace;
+            font-size: 0.9rem;
+            word-break: break-all;
+        }
+
+        @media (max-width: 768px) {
+            .main-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .header h1 {
+                font-size: 2rem;
+            }
+        }
+
+        .privacy-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+
+        .privacy-high { background: #48bb78; }
+        .privacy-medium { background: #ed8936; }
+        .privacy-low { background: #f56565; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔐 Anonymous Behavior Analysis</h1>
+            <p>Privacy-preserving behavioral data collection and analysis platform</p>
+        </div>
+
+        <div class="wallet-info" id="walletInfo" style="display: none;">
+            <div><strong>Connected Wallet:</strong></div>
+            <div class="wallet-address" id="walletAddress"></div>
+            <div style="margin-top: 10px;">
+                <strong>Network:</strong> <span id="networkName">Sepolia Testnet</span>
+            </div>
+        </div>
+
+        <div class="main-grid">
+            <div class="card">
+                <h3>🔗 Wallet Connection</h3>
+                <button class="btn" id="connectBtn" onclick="connectWallet()">Connect MetaMask</button>
+                <div id="connectionStatus"></div>
+            </div>
+
+            <div class="card">
+                <h3>📊 Record Behavior Session</h3>
+                <div class="form-group">
+                    <label for="sessionDuration">Session Duration (minutes)</label>
+                    <input type="number" id="sessionDuration" placeholder="e.g., 45" min="1" max="1440">
+                </div>
+                <div class="form-group">
+                    <label for="activityLevel">Activity Level (0-100)</label>
+                    <input type="range" id="activityLevel" min="0" max="100" value="50">
+                    <div style="text-align: center; margin-top: 5px;">
+                        <span id="activityValue">50</span>%
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="interactionType">Interaction Type</label>
+                    <select id="interactionType">
+                        <option value="0">Browsing</option>
+                        <option value="1">Reading</option>
+                        <option value="2">Writing</option>
+                        <option value="3">Gaming</option>
+                        <option value="4">Communication</option>
+                        <option value="5">Media Consumption</option>
+                        <option value="6">Shopping</option>
+                        <option value="7">Learning</option>
+                        <option value="8">Work/Productivity</option>
+                        <option value="9">Social Media</option>
+                        <option value="10">Other</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="dataPoints">Data Points Collected</label>
+                    <input type="number" id="dataPoints" placeholder="e.g., 150" min="1" max="10000">
+                </div>
+                <button class="btn" onclick="recordSession()" id="recordBtn">Record Session</button>
+                <div id="recordStatus"></div>
+            </div>
+
+            <div class="card">
+                <h3>🎯 Analyst Management</h3>
+                <div class="form-group">
+                    <label for="analystAddress">Analyst Address</label>
+                    <input type="text" id="analystAddress" placeholder="0x...">
+                </div>
+                <button class="btn btn-secondary" onclick="authorizeAnalyst()" id="authorizeBtn">Authorize Analyst</button>
+                <div style="margin-top: 15px;">
+                    <button class="btn" onclick="checkAnalystStatus()" id="checkAnalystBtn">Check My Analyst Status</button>
+                </div>
+                <div id="analystStatus"></div>
+            </div>
+
+            <div class="card">
+                <h3>📈 Analysis & Patterns</h3>
+                <button class="btn" onclick="analyzePattern()" id="analyzeBtn">Analyze My Behavior Pattern</button>
+                <div style="margin-top: 15px;">
+                    <div class="form-group">
+                        <label for="targetUser">User to Analyze (if analyst)</label>
+                        <input type="text" id="targetUser" placeholder="0x...">
+                    </div>
+                    <button class="btn btn-secondary" onclick="analyzeUserPattern()" id="analyzeUserBtn">Analyze User Pattern</button>
+                </div>
+                <div id="analysisStatus"></div>
+            </div>
+
+            <div class="card">
+                <h3>🔒 Privacy Metrics</h3>
+                <div class="form-group">
+                    <label for="privacyScore">Privacy Score (0-100)</label>
+                    <input type="range" id="privacyScore" min="0" max="100" value="75">
+                    <div style="text-align: center; margin-top: 5px;">
+                        <span id="privacyValue">75</span>%
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="anomalyLevel">Anomaly Level (0-100)</label>
+                    <input type="range" id="anomalyLevel" min="0" max="100" value="25">
+                    <div style="text-align: center; margin-top: 5px;">
+                        <span id="anomalyValue">25</span>%
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="behaviorVariability">Behavior Variability</label>
+                    <input type="number" id="behaviorVariability" placeholder="e.g., 85" min="0" max="1000">
+                </div>
+                <div class="form-group">
+                    <label for="metricsUser">Update Metrics for User</label>
+                    <input type="text" id="metricsUser" placeholder="0x...">
+                </div>
+                <button class="btn" onclick="updatePrivacyMetrics()" id="metricsBtn">Update Privacy Metrics</button>
+                <div id="metricsStatus"></div>
+            </div>
+
+            <div class="card">
+                <h3>📋 Contract Statistics</h3>
+                <div class="stats-grid" id="statsGrid">
+                    <div class="stat-item">
+                        <h4 id="totalSessions">-</h4>
+                        <p>Total Sessions</p>
+                    </div>
+                    <div class="stat-item">
+                        <h4 id="nextSessionId">-</h4>
+                        <p>Next Session ID</p>
+                    </div>
+                    <div class="stat-item">
+                        <h4 id="userSessionCount">-</h4>
+                        <p>My Sessions</p>
+                    </div>
+                </div>
+                <button class="btn btn-secondary" onclick="loadStats()" style="margin-top: 15px;">Refresh Statistics</button>
+            </div>
+        </div>
+
+        <div class="card">
+            <h3>📜 Recent Sessions</h3>
+            <div id="sessionHistory" class="session-history"></div>
+            <button class="btn btn-secondary" onclick="loadSessionHistory()" style="margin-top: 15px;">Load Session History</button>
+        </div>
+    </div>
+
+    <script>
+        const CONTRACT_ADDRESS = "0x760E186B48583A49d97EacdD6901a3a0990622A7";
+        const CONTRACT_ABI = [
+            "function authorizeAnalyst(address analyst) external",
+            "function revokeAnalyst(address analyst) external",
+            "function recordBehaviorSession(uint32 _sessionDuration, uint8 _activityLevel, uint8 _interactionType, uint16 _dataPoints) external",
+            "function assignAnalystToSession(uint32 sessionId, address analyst) external",
+            "function analyzeBehaviorPattern(address user) external",
+            "function updatePrivacyMetrics(address user, uint8 _privacyScore, uint8 _anomalyLevel, uint16 _behaviorVariability) external",
+            "function requestDecryptedAnalysis(address user) external",
+            "function getUserSessionCount(address user) external view returns (uint32)",
+            "function getSessionInfo(uint32 sessionId) external view returns (bool isActive, uint256 timestamp, address analyst)",
+            "function isAuthorizedAnalyst(address analyst) external view returns (bool)",
+            "function getContractStats() external view returns (uint32 totalSessionsCount, uint32 nextSessionIdValue)",
+            "event SessionRecorded(uint32 indexed sessionId, address indexed user, uint256 timestamp)",
+            "event PatternAnalyzed(address indexed user, address indexed analyst)",
+            "event PrivacyMetricsUpdated(address indexed user, uint256 timestamp)",
+            "event AnomalyDetected(address indexed user, uint32 indexed sessionId)",
+            "event AnalystAuthorized(address indexed analyst, address indexed authorizer)"
+        ];
+
+        let provider, signer, contract, userAddress;
+
+        // Simple ethers check on window load
+        window.addEventListener('load', function() {
+            setTimeout(function() {
+                if (typeof ethers === 'undefined') {
+                    console.error('Ethers.js failed to load');
+                    document.body.innerHTML = `
+                        <div style="text-align: center; padding: 50px; color: red; font-family: Arial, sans-serif;">
+                            <h1>⚠️ Library Loading Error</h1>
+                            <p style="margin: 20px 0;">Failed to load Ethers.js library.</p>
+                            <button onclick="location.reload()" style="padding: 10px 20px; font-size: 16px; background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer;">
+                                Reload Page
+                            </button>
+                        </div>
+                    `;
+                } else {
+                    console.log('Ethers.js loaded successfully, version:', ethers.version);
+                }
+            }, 1000); // Wait 1 second for script to load
+        });
+
+        // Update range input displays
+        document.getElementById('activityLevel').addEventListener('input', function() {
+            document.getElementById('activityValue').textContent = this.value;
+        });
+
+        document.getElementById('privacyScore').addEventListener('input', function() {
+            document.getElementById('privacyValue').textContent = this.value;
+        });
+
+        document.getElementById('anomalyLevel').addEventListener('input', function() {
+            document.getElementById('anomalyValue').textContent = this.value;
+        });
+
+        async function connectWallet() {
+            try {
+                // Step 0: Verify ethers is loaded
+                if (typeof ethers === 'undefined') {
+                    showStatus('connectionStatus', 'Ethers.js library not loaded. Please refresh the page.', 'error');
+                    return;
+                }
+
+                // Step 1: Check for MetaMask
+                if (typeof window.ethereum === 'undefined') {
+                    showStatus('connectionStatus', 'MetaMask not detected. Please install MetaMask extension.', 'error');
+                    return;
+                }
+
+                showStatus('connectionStatus', 'Connecting to MetaMask...', 'loading');
+
+                // Step 2: Request account access
+                const accounts = await ethereum.request({ method: 'eth_requestAccounts' });
+                if (accounts.length === 0) {
+                    showStatus('connectionStatus', 'No accounts available. Please unlock MetaMask.', 'error');
+                    return;
+                }
+
+                // Step 3: Create provider and signer (ethers v5 syntax)
+                provider = new ethers.providers.Web3Provider(window.ethereum);
+                signer = provider.getSigner();
+                userAddress = accounts[0];
+
+                // Step 4: Network validation
+                const network = await provider.getNetwork();
+                const sepoliaChainId = 11155111; // 0xaa36a7
+
+                if (network.chainId !== sepoliaChainId) {
+                    showStatus('connectionStatus', 'Switching to Sepolia testnet...', 'loading');
+                    await switchToSepolia();
+                }
+
+                // Step 5: Contract initialization
+                contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, signer);
+
+                // Step 6: UI state update
+                document.getElementById('walletInfo').style.display = 'block';
+                document.getElementById('walletAddress').textContent = userAddress;
+                document.getElementById('connectBtn').textContent = 'Connected to Sepolia! ✅';
+                document.getElementById('connectBtn').disabled = true;
+
+                // Step 7: Success handling
+                showStatus('connectionStatus', 'Connected to Sepolia! ✅', 'success');
+
+                // Get initial state
+                await loadStats();
+
+            } catch (error) {
+                console.error('Wallet connection error:', error);
+                if (error.code === 4001) {
+                    showStatus('connectionStatus', 'Connection rejected by user.', 'error');
+                } else if (error.code === -32002) {
+                    showStatus('connectionStatus', 'Connection request pending. Please check MetaMask.', 'error');
+                } else {
+                    showStatus('connectionStatus', `Connection failed: ${error.message}`, 'error');
+                }
+            }
+        }
+
+        async function switchToSepolia() {
+            const sepoliaConfig = {
+                chainId: '0xaa36a7',
+                chainName: 'Sepolia Test Network',
+                nativeCurrency: {
+                    name: 'Sepolia ETH',
+                    symbol: 'SEP',
+                    decimals: 18
+                },
+                rpcUrls: ['https://sepolia.infura.io/v3/'],
+                blockExplorerUrls: ['https://sepolia.etherscan.io/']
+            };
+
+            try {
+                // Try to switch to Sepolia
+                await ethereum.request({
+                    method: 'wallet_switchEthereumChain',
+                    params: [{ chainId: sepoliaConfig.chainId }]
+                });
+            } catch (switchError) {
+                // If Sepolia is not added, add it
+                if (switchError.code === 4902) {
+                    try {
+                        await ethereum.request({
+                            method: 'wallet_addEthereumChain',
+                            params: [sepoliaConfig]
+                        });
+                    } catch (addError) {
+                        throw new Error('Failed to add Sepolia network');
+                    }
+                } else {
+                    throw switchError;
+                }
+            }
+        }
+
+        async function recordSession() {
+            if (!contract) {
+                showStatus('recordStatus', 'Please connect your wallet first', 'error');
+                return;
+            }
+
+            const duration = document.getElementById('sessionDuration').value;
+            const activity = document.getElementById('activityLevel').value;
+            const interaction = document.getElementById('interactionType').value;
+            const dataPoints = document.getElementById('dataPoints').value;
+
+            if (!duration || !dataPoints) {
+                showStatus('recordStatus', 'Please fill in all required fields', 'error');
+                return;
+            }
+
+            try {
+                showStatus('recordStatus', 'Recording session...', 'loading');
+
+                const tx = await contract.recordBehaviorSession(
+                    parseInt(duration),
+                    parseInt(activity),
+                    parseInt(interaction),
+                    parseInt(dataPoints)
+                );
+
+                showStatus('recordStatus', 'Transaction submitted. Waiting for confirmation...', 'loading');
+                await tx.wait();
+
+                showStatus('recordStatus', 'Session recorded successfully!', 'success');
+                loadStats();
+
+                // Clear form
+                document.getElementById('sessionDuration').value = '';
+                document.getElementById('dataPoints').value = '';
+
+            } catch (error) {
+                console.error('Error recording session:', error);
+                showStatus('recordStatus', `Error: ${error.message}`, 'error');
+            }
+        }
+
+        async function authorizeAnalyst() {
+            if (!contract) {
+                showStatus('analystStatus', 'Please connect your wallet first', 'error');
+                return;
+            }
+
+            const analystAddress = document.getElementById('analystAddress').value;
+
+            if (!analystAddress || !ethers.utils.isAddress(analystAddress)) {
+                showStatus('analystStatus', 'Please enter a valid analyst address', 'error');
+                return;
+            }
+
+            try {
+                showStatus('analystStatus', 'Authorizing analyst...', 'loading');
+
+                const tx = await contract.authorizeAnalyst(analystAddress);
+
+                showStatus('analystStatus', 'Transaction submitted. Waiting for confirmation...', 'loading');
+                await tx.wait();
+
+                showStatus('analystStatus', 'Analyst authorized successfully!', 'success');
+                document.getElementById('analystAddress').value = '';
+
+            } catch (error) {
+                console.error('Error authorizing analyst:', error);
+                showStatus('analystStatus', `Error: ${error.message}`, 'error');
+            }
+        }
+
+        async function checkAnalystStatus() {
+            if (!contract) {
+                showStatus('analystStatus', 'Please connect your wallet first', 'error');
+                return;
+            }
+
+            try {
+                const isAnalyst = await contract.isAuthorizedAnalyst(userAddress);
+                const status = isAnalyst ? 'You are an authorized analyst' : 'You are not an authorized analyst';
+                const statusType = isAnalyst ? 'success' : 'error';
+
+                showStatus('analystStatus', status, statusType);
+
+            } catch (error) {
+                console.error('Error checking analyst status:', error);
+                showStatus('analystStatus', `Error: ${error.message}`, 'error');
+            }
+        }
+
+        async function analyzePattern() {
+            if (!contract) {
+                showStatus('analysisStatus', 'Please connect your wallet first', 'error');
+                return;
+            }
+
+            try {
+                showStatus('analysisStatus', 'Analyzing your behavior pattern...', 'loading');
+
+                const tx = await contract.analyzeBehaviorPattern(userAddress);
+
+                showStatus('analysisStatus', 'Transaction submitted. Waiting for confirmation...', 'loading');
+                await tx.wait();
+
+                showStatus('analysisStatus', 'Pattern analysis completed!', 'success');
+
+            } catch (error) {
+                console.error('Error analyzing pattern:', error);
+                showStatus('analysisStatus', `Error: ${error.message}`, 'error');
+            }
+        }
+
+        async function analyzeUserPattern() {
+            if (!contract) {
+                showStatus('analysisStatus', 'Please connect your wallet first', 'error');
+                return;
+            }
+
+            const targetUser = document.getElementById('targetUser').value;
+
+            if (!targetUser || !ethers.utils.isAddress(targetUser)) {
+                showStatus('analysisStatus', 'Please enter a valid user address', 'error');
+                return;
+            }
+
+            try {
+                showStatus('analysisStatus', 'Analyzing user behavior pattern...', 'loading');
+
+                const tx = await contract.analyzeBehaviorPattern(targetUser);
+
+                showStatus('analysisStatus', 'Transaction submitted. Waiting for confirmation...', 'loading');
+                await tx.wait();
+
+                showStatus('analysisStatus', 'User pattern analysis completed!', 'success');
+                document.getElementById('targetUser').value = '';
+
+            } catch (error) {
+                console.error('Error analyzing user pattern:', error);
+                showStatus('analysisStatus', `Error: ${error.message}`, 'error');
+            }
+        }
+
+        async function updatePrivacyMetrics() {
+            if (!contract) {
+                showStatus('metricsStatus', 'Please connect your wallet first', 'error');
+                return;
+            }
+
+            const metricsUser = document.getElementById('metricsUser').value;
+            const privacyScore = document.getElementById('privacyScore').value;
+            const anomalyLevel = document.getElementById('anomalyLevel').value;
+            const behaviorVariability = document.getElementById('behaviorVariability').value;
+
+            if (!metricsUser || !ethers.utils.isAddress(metricsUser)) {
+                showStatus('metricsStatus', 'Please enter a valid user address', 'error');
+                return;
+            }
+
+            if (!behaviorVariability) {
+                showStatus('metricsStatus', 'Please enter behavior variability value', 'error');
+                return;
+            }
+
+            try {
+                showStatus('metricsStatus', 'Updating privacy metrics...', 'loading');
+
+                const tx = await contract.updatePrivacyMetrics(
+                    metricsUser,
+                    parseInt(privacyScore),
+                    parseInt(anomalyLevel),
+                    parseInt(behaviorVariability)
+                );
+
+                showStatus('metricsStatus', 'Transaction submitted. Waiting for confirmation...', 'loading');
+                await tx.wait();
+
+                showStatus('metricsStatus', 'Privacy metrics updated successfully!', 'success');
+                document.getElementById('metricsUser').value = '';
+                document.getElementById('behaviorVariability').value = '';
+
+            } catch (error) {
+                console.error('Error updating metrics:', error);
+                showStatus('metricsStatus', `Error: ${error.message}`, 'error');
+            }
+        }
+
+        async function loadStats() {
+            if (!contract) return;
+
+            try {
+                const [totalSessions, nextSessionId] = await contract.getContractStats();
+                document.getElementById('totalSessions').textContent = totalSessions.toString();
+                document.getElementById('nextSessionId').textContent = nextSessionId.toString();
+
+                if (userAddress) {
+                    const userSessionCount = await contract.getUserSessionCount(userAddress);
+                    document.getElementById('userSessionCount').textContent = userSessionCount.toString();
+                }
+
+            } catch (error) {
+                console.error('Error loading stats:', error);
+            }
+        }
+
+        async function loadSessionHistory() {
+            if (!contract || !userAddress) {
+                document.getElementById('sessionHistory').innerHTML = '<p>Please connect your wallet first</p>';
+                return;
+            }
+
+            try {
+                const userSessionCount = await contract.getUserSessionCount(userAddress);
+                const historyDiv = document.getElementById('sessionHistory');
+
+                if (userSessionCount.toNumber() === 0) {
+                    historyDiv.innerHTML = '<p>No sessions recorded yet</p>';
+                    return;
+                }
+
+                historyDiv.innerHTML = '<p>Loading session history...</p>';
+
+                // Load recent sessions (simplified - in real app, you'd need to track session IDs properly)
+                let sessionsHtml = '';
+                for (let i = Math.max(1, userSessionCount.toNumber() - 4); i <= userSessionCount.toNumber(); i++) {
+                    try {
+                        const sessionInfo = await contract.getSessionInfo(i);
+                        const date = new Date(sessionInfo.timestamp.toNumber() * 1000);
+
+                        sessionsHtml += `
+                            <div class="session-item">
+                                <h4>Session #${i}</h4>
+                                <div class="session-meta">
+                                    <div><strong>Date:</strong> ${date.toLocaleString()}</div>
+                                    <div><strong>Status:</strong> ${sessionInfo.isActive ? 'Active' : 'Inactive'}</div>
+                                    <div><strong>Analyst:</strong> ${sessionInfo.analyst === ethers.constants.AddressZero ? 'None' : sessionInfo.analyst}</div>
+                                </div>
+                            </div>
+                        `;
+                    } catch (err) {
+                        console.log(`Session ${i} not found or not accessible`);
+                    }
+                }
+
+                historyDiv.innerHTML = sessionsHtml || '<p>No accessible session history found</p>';
+
+            } catch (error) {
+                console.error('Error loading session history:', error);
+                document.getElementById('sessionHistory').innerHTML = '<p>Error loading session history</p>';
+            }
+        }
+
+        function showStatus(elementId, message, type) {
+            const element = document.getElementById(elementId);
+            element.textContent = message;
+            element.className = `status ${type}`;
+        }
+
+        // Listen for account changes
+        if (window.ethereum) {
+            window.ethereum.on('accountsChanged', function(accounts) {
+                if (accounts.length === 0) {
+                    // User disconnected
+                    document.getElementById('walletInfo').style.display = 'none';
+                    document.getElementById('connectBtn').textContent = 'Connect MetaMask';
+                    document.getElementById('connectBtn').disabled = false;
+                    userAddress = null;
+                    contract = null;
+                } else {
+                    // User switched accounts
+                    connectWallet();
+                }
+            });
+        }
+    </script>
+</body>
+</html>
